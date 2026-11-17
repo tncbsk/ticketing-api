@@ -80,19 +80,22 @@ public class EventService {
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Event not found"));
     }
 
+    public Event findEventById(Long eventId) {
+        return eventRepository.findById(eventId).orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Event not found"));
+    }
+
     private void validateEventDates(EventRequest eventRequest) {
+
         if (!eventRequest.endsAt().isAfter(eventRequest.startsAt())) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "End date must be after start date");
         }
     }
 
-    private Event findEventAndCheckOwner(Long id, AuthUser user) {
-        Event event = eventRepository.findById(id).orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Event not found"));
-
+    private Event findEventAndCheckOwner(Long eventId, AuthUser user) {
+        Event event = findEventById(eventId);
         if (!event.getOwnerId().equals(user.id()) && !user.isAdmin()) {
-            throw new ApiException(HttpStatus.FORBIDDEN, "Only Event Owner or Admin can modify the event");
+            throw new ApiException(HttpStatus.FORBIDDEN, "Only event owner or admin can modify the event");
         }
         return event;
     }
-
 }
