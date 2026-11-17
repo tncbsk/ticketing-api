@@ -1,9 +1,11 @@
 package com.ticketing.service;
 
-import com.ticketing.util.HashUtils;
 import com.ticketing.dto.reservation.ReservationRequest;
 import com.ticketing.dto.reservation.ReservationResponse;
-import com.ticketing.entity.*;
+import com.ticketing.entity.Event;
+import com.ticketing.entity.IdempotencyKey;
+import com.ticketing.entity.Reservation;
+import com.ticketing.entity.ReservationStatus;
 import com.ticketing.exception.ApiException;
 import com.ticketing.repository.ReservationRepository;
 import com.ticketing.security.AuthUser;
@@ -26,26 +28,19 @@ public class ReservationService {
     @Transactional
     public ReservationResponse create(Long eventId, ReservationRequest request, String idempotencyKey, AuthUser user) {
         final String endpoint = "POST /api/events/" + eventId + "/reservations";
-        final String requestHash = HashUtils.sha256("seats=" + request.seats());
-        final Optional<IdempotencyKey> optionalIdempotencyKey = idempotencyService.findActive(idempotencyKey, endpoint, user.id());
-        if (optionalIdempotencyKey.isPresent()) {
-            final IdempotencyKey existingIdempotency = optionalIdempotencyKey.get();
-            if (!existingIdempotency.getRequestHash().equals(requestHash)) {
-                throw new ApiException(HttpStatus.BAD_REQUEST, "Idempotency-Key was already used with a different request");
-            }
-            return reservationRepository.findById(existingIdempotency.getResourceId())
+        final String requestBody = "seats=" + request.seats();
+        //For concurrency need to Lock Event beginning of the create process
+        final Event event = eventService.findPublishedForUpdate(eventId);
+
+        final Optional<Long> existingReservationId =
+                idempotencyService.findCompletedResourceId(idempotencyKey, endpoint, user.id(), requestBody);
+        if (existingReservationId.isPresent()) {
+            return reservationRepository.findById(existingReservationId.get())
                     .map(ReservationResponse::from)
                     .orElseThrow(() -> new IllegalStateException("Reservation not found for idempotency key"));
         }
-        IdempotencyKey newIdempotencyKey = new IdempotencyKey();
-        newIdempotencyKey.setKey(idempotencyKey);
-        newIdempotencyKey.setTtl(IdempotencyService.IDEMPOTENCY_TTL_SECONDS);
-        newIdempotencyKey.setUserId(user.id());
-        newIdempotencyKey.setEndpoint(endpoint);
-        newIdempotencyKey.setRequestHash(requestHash);
-        idempotencyService.saveIdempotency(newIdempotencyKey);
 
-        final Event event = eventService.findPublishedForUpdate(eventId);
+        final IdempotencyKey keyRecord = idempotencyService.start(idempotencyKey, endpoint, user.id(), requestBody);
 
         if (event.hasStarted(LocalDateTime.now())) {
             throw new ApiException(HttpStatus.CONFLICT, "Event has already started");
@@ -61,13 +56,7 @@ public class ReservationService {
         reservationRepository.save(reservation);
 
         final ReservationResponse response = ReservationResponse.from(reservation);
-        final String responseHash = HashUtils.sha256(response.toString());
-
-        newIdempotencyKey.setResponseHash(responseHash);
-        newIdempotencyKey.setResourceId(reservation.getId());
-        newIdempotencyKey.setStatus(IdempotencyStatus.COMPLETED);
-        idempotencyService.saveIdempotency(newIdempotencyKey);
-
+        idempotencyService.complete(keyRecord, reservation.getId(), response.toString());
         return response;
     }
 
