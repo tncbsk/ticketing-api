@@ -1,17 +1,11 @@
 package com.ticketing.entity;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.PrePersist;
-import jakarta.persistence.Table;
+import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 
 @Entity
 @Table(name = "audit_logs")
@@ -27,11 +21,13 @@ public class AuditLog {
     @Column(name = "actor_id")
     private Long actorId;
 
+    @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 50)
-    private String action;
+    private AuditAction action;
 
+    @Enumerated(EnumType.STRING)
     @Column(name = "resource_type", length = 50)
-    private String resourceType;
+    private ResourceType resourceType;
 
     @Column(name = "resource_id")
     private Long resourceId;
@@ -43,10 +39,10 @@ public class AuditLog {
     private String userAgent;
 
     @Column(name = "created_at", nullable = false, updatable = false)
-    private LocalDateTime createdAt;
+    private Instant createdAt;
 
     @PrePersist
     void prePersist() {
-        createdAt = LocalDateTime.now();
+        createdAt = Instant.now();
     }
 }

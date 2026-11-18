@@ -5,6 +5,8 @@ import com.ticketing.dto.auth.RefreshRequest;
 import com.ticketing.dto.auth.RegisterRequest;
 import com.ticketing.dto.auth.TokenResponse;
 import com.ticketing.dto.auth.UserResponse;
+import com.ticketing.entity.AuditAction;
+import com.ticketing.entity.ResourceType;
 import com.ticketing.entity.Role;
 import com.ticketing.entity.User;
 import com.ticketing.exception.ApiException;
@@ -16,11 +18,12 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 
 @Service
 @RequiredArgsConstructor
@@ -30,6 +33,7 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final AuthenticationManager authenticationManager;
     private final JwtService jwtService;
+    private final AuditService auditService;
 
     @Transactional
     public UserResponse register(RegisterRequest request) {
@@ -48,17 +52,26 @@ public class AuthService {
         user.setPasswordHash(passwordEncoder.encode(request.password()));
         user.getRoles().add(role);
 
-        return UserResponse.from(userRepository.save(user));
+        final User saved = userRepository.save(user);
+        auditService.record(saved.getId(), AuditAction.REGISTER, ResourceType.USER, saved.getId());
+        return UserResponse.from(saved);
     }
 
     @Transactional
     public TokenResponse login(LoginRequest request) {
         String email = request.email().trim().toLowerCase();
-        authenticationManager.authenticate(new UsernamePasswordAuthenticationToken(email, request.password()));
+        try {
+            authenticationManager.authenticate(new UsernamePasswordAuthenticationToken(email, request.password()));
+        } catch (AuthenticationException e) {
+            Long targetUserId = userRepository.findByEmail(email).map(User::getId).orElse(null);
+            auditService.recordFailure(null, AuditAction.LOGIN_FAILED, ResourceType.USER, targetUserId);
+            throw e;
+        }
 
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new ApiException(HttpStatus.UNAUTHORIZED, "Invalid email or password"));
-        user.setLastLoginAt(LocalDateTime.now());
+        user.setLastLoginAt(Instant.now());
+        auditService.record(user.getId(), AuditAction.LOGIN_SUCCESS, ResourceType.USER, user.getId());
 
         return issueTokens(user);
     }

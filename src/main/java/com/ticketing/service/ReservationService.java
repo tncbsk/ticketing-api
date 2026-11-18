@@ -2,10 +2,7 @@ package com.ticketing.service;
 
 import com.ticketing.dto.reservation.ReservationRequest;
 import com.ticketing.dto.reservation.ReservationResponse;
-import com.ticketing.entity.Event;
-import com.ticketing.entity.IdempotencyKey;
-import com.ticketing.entity.Reservation;
-import com.ticketing.entity.ReservationStatus;
+import com.ticketing.entity.*;
 import com.ticketing.exception.ApiException;
 import com.ticketing.repository.ReservationRepository;
 import com.ticketing.security.AuthUser;
@@ -14,7 +11,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.Optional;
 
 @Service
@@ -24,12 +21,13 @@ public class ReservationService {
     private final ReservationRepository reservationRepository;
     private final EventService eventService;
     private final IdempotencyService idempotencyService;
+    private final AuditService auditService;
 
     @Transactional
     public ReservationResponse create(Long eventId, ReservationRequest request, String idempotencyKey, AuthUser user) {
         final String endpoint = "POST /api/events/" + eventId + "/reservations";
         final String requestBody = "seats=" + request.seats();
-        //For concurrency need to Lock Event beginning of the create process
+        // lock first so that concurrent requests with the same idempotency key wait for each other.
         final Event event = eventService.findPublishedForUpdate(eventId);
 
         final Optional<Long> existingReservationId =
@@ -42,7 +40,7 @@ public class ReservationService {
 
         final IdempotencyKey keyRecord = idempotencyService.start(idempotencyKey, endpoint, user.id(), requestBody);
 
-        if (event.hasStarted(LocalDateTime.now())) {
+        if (event.hasStarted(Instant.now())) {
             throw new ApiException(HttpStatus.CONFLICT, "Event has already started");
         }
 
@@ -57,9 +55,11 @@ public class ReservationService {
 
         final ReservationResponse response = ReservationResponse.from(reservation);
         idempotencyService.complete(keyRecord, reservation.getId(), response.toString());
+        auditService.record(user.id(), AuditAction.RESERVATION_CREATED, ResourceType.RESERVATION, reservation.getId());
         return response;
     }
 
+    @Transactional
     public ReservationResponse confirm(Long reservationId, AuthUser user) {
 
         final Reservation reservation = findReservationAndCheckOwner(reservationId, user);
@@ -70,9 +70,11 @@ public class ReservationService {
 
         reservation.setStatus(ReservationStatus.CONFIRMED);
         reservationRepository.saveAndFlush(reservation);
+        auditService.record(user.id(), AuditAction.RESERVATION_CONFIRMED, ResourceType.RESERVATION, reservation.getId());
         return ReservationResponse.from(reservation);
     }
 
+    @Transactional
     public ReservationResponse cancel(Long reservationId, AuthUser user) {
 
         final Reservation reservation = findReservationAndCheckOwner(reservationId, user);
@@ -82,6 +84,7 @@ public class ReservationService {
         }
         reservation.setStatus(ReservationStatus.CANCELLED);
         reservationRepository.saveAndFlush(reservation);
+        auditService.record(user.id(), AuditAction.RESERVATION_CANCELLED, ResourceType.RESERVATION, reservation.getId());
         return ReservationResponse.from(reservation);
     }
 
@@ -104,7 +107,7 @@ public class ReservationService {
         }
 
         final Event event = eventService.findEventById(reservation.getEventId());
-        if (event.hasStarted(LocalDateTime.now())) {
+        if (event.hasStarted(Instant.now())) {
             throw new ApiException(HttpStatus.CONFLICT, "Reservation cannot be changed after the event has started");
         }
 

@@ -1,0 +1,13 @@
+package com.ticketing.entity;
+
+public enum AuditAction {
+    LOGIN_SUCCESS,
+    LOGIN_FAILED,
+    REGISTER,
+    EVENT_CREATED,
+    EVENT_UPDATED,
+    EVENT_PUBLISHED,
+    RESERVATION_CREATED,
+    RESERVATION_CONFIRMED,
+    RESERVATION_CANCELLED
+}

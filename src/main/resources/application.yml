@@ -24,6 +24,10 @@ app:
     secret: ${JWT_SECRET:dev-only-secret-key-change-before-deploy-0123456789}
     access-token-minutes: 15
     refresh-token-days: 7
+  rate-limit:
+    enabled: true
+    auth:
+      requests-per-minute: 10
 
 management:
   endpoints:

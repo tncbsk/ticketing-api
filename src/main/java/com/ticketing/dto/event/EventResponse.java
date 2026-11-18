@@ -2,15 +2,15 @@ package com.ticketing.dto.event;
 
 import com.ticketing.entity.Event;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 
 public record EventResponse(
         Long id,
         Long ownerId,
         String title,
         String venue,
-        LocalDateTime startsAt,
-        LocalDateTime endsAt,
+        Instant startsAt,
+        Instant endsAt,
         Integer capacity,
         boolean published,
         Long version

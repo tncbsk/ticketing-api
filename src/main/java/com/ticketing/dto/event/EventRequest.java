@@ -6,13 +6,13 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 
 public record EventRequest(
         @NotBlank @Size(max = 200) String title,
         @NotBlank @Size(max = 200) String venue,
-        @NotNull @Future LocalDateTime startsAt,
-        @NotNull @Future LocalDateTime endsAt,
+        @NotNull @Future Instant startsAt,
+        @NotNull @Future Instant endsAt,
         @NotNull @Positive Integer capacity
 ) {
 }

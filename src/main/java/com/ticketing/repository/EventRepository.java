@@ -7,7 +7,7 @@ import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
@@ -25,7 +25,7 @@ public interface EventRepository extends JpaRepository<Event, Long> {
                        or lower(e.venue) like lower(concat('%', :q, '%')))
                 order by e.startsAt
             """)
-    List<Event> searchPublishedEventWithParams(@Param("from") LocalDateTime from, @Param("to") LocalDateTime to, @Param("q") String query);
+    List<Event> searchPublishedEventWithParams(@Param("from") Instant from, @Param("to") Instant to, @Param("q") String query);
 
     @Query("""
             SELECT e from Event e

@@ -12,7 +12,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 
 @Entity
 @Table(name = "events", indexes = @Index(name = "idx_events_owner", columnList = "owner_id"))
@@ -35,10 +35,10 @@ public class Event {
     private String venue;
 
     @Column(name = "starts_at", nullable = false)
-    private LocalDateTime startsAt;
+    private Instant startsAt;
 
     @Column(name = "ends_at", nullable = false)
-    private LocalDateTime endsAt;
+    private Instant endsAt;
 
     @Column(nullable = false)
     private Integer capacity;
@@ -49,7 +49,7 @@ public class Event {
     @Version
     private Long version;
 
-    public boolean hasStarted(LocalDateTime now) {
+    public boolean hasStarted(Instant now) {
         return startsAt.isBefore(now);
     }
 }

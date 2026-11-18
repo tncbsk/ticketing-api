@@ -3,7 +3,7 @@ package com.ticketing.dto.reservation;
 import com.ticketing.entity.Reservation;
 import com.ticketing.entity.ReservationStatus;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 
 public record ReservationResponse(
         Long id,
@@ -11,7 +11,7 @@ public record ReservationResponse(
         Long userId,
         ReservationStatus status,
         Integer seats,
-        LocalDateTime createdAt
+        Instant createdAt
 ) {
 
     public static ReservationResponse from(Reservation reservation) {

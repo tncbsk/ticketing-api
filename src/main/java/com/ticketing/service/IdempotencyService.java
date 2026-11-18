@@ -9,7 +9,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.Optional;
 
 @Service
@@ -57,6 +57,6 @@ public class IdempotencyService {
     }
 
     private boolean isExpired(IdempotencyKey keyRecord) {
-        return keyRecord.getCreatedAt().plusSeconds(keyRecord.getTtl()).isBefore(LocalDateTime.now());
+        return keyRecord.getCreatedAt().plusSeconds(keyRecord.getTtl()).isBefore(Instant.now());
     }
 }
