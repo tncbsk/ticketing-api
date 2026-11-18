@@ -52,9 +52,9 @@ public class AuthService {
         user.setPasswordHash(passwordEncoder.encode(request.password()));
         user.getRoles().add(role);
 
-        final User saved = userRepository.save(user);
-        auditService.record(saved.getId(), AuditAction.REGISTER, ResourceType.USER, saved.getId());
-        return UserResponse.from(saved);
+        userRepository.save(user);
+        auditService.record(user.getId(), AuditAction.REGISTER, ResourceType.USER, user.getId());
+        return UserResponse.from(user);
     }
 
     @Transactional

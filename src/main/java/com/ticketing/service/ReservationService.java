@@ -30,20 +30,24 @@ public class ReservationService {
 
     @Transactional
     public ReservationResponse create(Long eventId, ReservationRequest request, String idempotencyKey, AuthUser user) {
+
+        idempotencyService.validateKey(idempotencyKey);
+
         final String endpoint = "POST /api/events/" + eventId + "/reservations";
-        final String requestBody = "seats=" + request.seats();
+        final String requestFingerprint = "seats=" + request.seats();
         // lock first so that concurrent requests with the same idempotency key wait for each other.
         final Event event = eventService.findPublishedForUpdate(eventId);
 
         final Optional<Long> existingReservationId =
-                idempotencyService.findCompletedResourceId(idempotencyKey, endpoint, user.id(), requestBody);
+                idempotencyService.resolveExistingResourceId(idempotencyKey, endpoint, user.id(), requestFingerprint);
+
         if (existingReservationId.isPresent()) {
             return reservationRepository.findById(existingReservationId.get())
                     .map(ReservationResponse::from)
                     .orElseThrow(() -> new IllegalStateException("Reservation not found for idempotency key"));
         }
 
-        final IdempotencyKey keyRecord = idempotencyService.start(idempotencyKey, endpoint, user.id(), requestBody);
+        final IdempotencyKey keyRecord = idempotencyService.start(idempotencyKey, endpoint, user.id(), requestFingerprint);
 
         if (event.hasStarted(Instant.now())) {
             throw new ApiException(HttpStatus.CONFLICT, "Event has already started");

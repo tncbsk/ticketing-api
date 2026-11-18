@@ -24,12 +24,14 @@ import java.time.Instant;
 @NoArgsConstructor
 public class IdempotencyKey {
 
+    public static final int MAX_KEY_LENGTH = 100;
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
     // "key" is a reserved word in H2
-    @Column(name = "idem_key", nullable = false, length = 100)
+    @Column(name = "idem_key", nullable = false, length = MAX_KEY_LENGTH)
     private String key;
 
     @Column(name = "user_id" , nullable = false)

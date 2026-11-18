@@ -20,7 +20,14 @@ public class IdempotencyService {
 
     private final IdempotencyKeyRepository idempotencyKeyRepository;
 
-    public Optional<Long> findCompletedResourceId(String key, String endpoint, Long userId, String requestBody) {
+    public void validateKey(String key) {
+        if (key.isBlank() || key.length() > IdempotencyKey.MAX_KEY_LENGTH) {
+            throw new ApiException(HttpStatus.BAD_REQUEST,
+                    "Idempotency-Key must be between 1 and " + IdempotencyKey.MAX_KEY_LENGTH + " characters");
+        }
+    }
+
+    public Optional<Long> resolveExistingResourceId(String key, String endpoint, Long userId, String requestBody) {
         return findActive(key, endpoint, userId).map(existing -> {
             if (!existing.getRequestHash().equals(HashUtils.sha256(requestBody))) {
                 throw new ApiException(HttpStatus.BAD_REQUEST, "Idempotency-Key was already used with a different request");
