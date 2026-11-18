@@ -1,4 +1,4 @@
-package com.ticketing.Intergration.audit;
+package com.ticketing.integration.audit;
 
 import com.ticketing.entity.AuditAction;
 import com.ticketing.entity.AuditLog;

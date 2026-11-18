@@ -19,9 +19,9 @@ public class DataSeeder implements CommandLineRunner {
 
     @Override
     public void run(String... args) {
-        seed("admin@ticketing.local", "Admin123!", Role.ADMIN);
-        seed("organizer@ticketing.local", "Organizer123!", Role.ORGANIZER);
-        seed("customer@ticketing.local", "Customer123!", Role.CUSTOMER);
+        seed("admin@example.com", "admin123", Role.ADMIN);
+        seed("organizer@example.com", "organizer123", Role.ORGANIZER);
+        seed("customer@example.com", "customer123", Role.CUSTOMER);
     }
 
     private void seed(String email, String rawPassword, Role role) {

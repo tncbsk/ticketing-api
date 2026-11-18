@@ -1,4 +1,4 @@
-package com.ticketing.security;
+package com.ticketing.integration.security;
 
 import com.ticketing.support.IntegrationTest;
 import org.junit.jupiter.api.Test;

@@ -23,8 +23,8 @@ import java.util.UUID;
 @ActiveProfiles("test")
 public abstract class IntegrationTest {
 
-    protected static final String ORGANIZER_EMAIL = "organizer@ticketing.local";
-    protected static final String CUSTOMER_EMAIL = "customer@ticketing.local";
+    protected static final String ORGANIZER_EMAIL = "organizer@example.com";
+    protected static final String CUSTOMER_EMAIL = "customer@example.com";
 
     @Autowired
     protected MockMvc mockMvc;

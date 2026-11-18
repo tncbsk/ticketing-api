@@ -1,4 +1,4 @@
-package com.ticketing.security;
+package com.ticketing.integration.security;
 
 import com.ticketing.dto.reservation.ReservationRequest;
 import com.ticketing.entity.Role;

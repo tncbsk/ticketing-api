@@ -1,4 +1,4 @@
-package com.ticketing.Intergration.auth;
+package com.ticketing.integration.auth;
 
 import com.ticketing.entity.User;
 import com.ticketing.support.IntegrationTest;
@@ -37,7 +37,7 @@ class AuthIntegrationTest extends IntegrationTest {
 
         mockMvc.perform(post("/api/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"email\":\"" + CUSTOMER_EMAIL + "\",\"password\":\"Customer123!\"}"))
+                        .content("{\"email\":\"" + CUSTOMER_EMAIL + "\",\"password\":\"customer123\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.accessToken").isNotEmpty())
                 .andExpect(jsonPath("$.refreshToken").isNotEmpty())

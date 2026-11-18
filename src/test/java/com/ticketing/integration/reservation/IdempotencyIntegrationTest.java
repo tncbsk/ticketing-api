@@ -1,4 +1,4 @@
-package com.ticketing.Intergration.reservation;
+package com.ticketing.integration.reservation;
 
 import com.ticketing.dto.reservation.ReservationRequest;
 import com.ticketing.exception.ApiException;
