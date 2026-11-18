@@ -34,4 +34,8 @@ public interface EventRepository extends JpaRepository<Event, Long> {
             """)
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     Optional<Event> findPublishedForUpdate(@Param("eventId") Long eventId);
+
+    @Query("select e from Event e where e.id = :eventId")
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    Optional<Event> findByIdForUpdate(@Param("eventId") Long eventId);
 }

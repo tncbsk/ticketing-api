@@ -7,6 +7,7 @@ import com.ticketing.entity.Event;
 import com.ticketing.entity.ResourceType;
 import com.ticketing.exception.ApiException;
 import com.ticketing.repository.EventRepository;
+import com.ticketing.repository.ReservationRepository;
 import com.ticketing.security.AuthUser;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -22,6 +23,7 @@ public class EventService {
 
     private final EventRepository eventRepository;
     private final AuditService auditService;
+    private final ReservationRepository reservationRepository;
 
     @Transactional
     public EventResponse create(EventRequest eventRequest, AuthUser user) {
@@ -41,11 +43,15 @@ public class EventService {
     }
 
     @Transactional
-    public EventResponse update(Long id, EventRequest eventRequest, AuthUser user) {
+    public EventResponse update(Long eventId, EventRequest eventRequest, AuthUser user) {
 
-        final Event event = findEventAndCheckOwner(id, user);
+        // same row lock as reservation creation, so capacity check and new reservations cannot interleave
+        final Event event = eventRepository.findByIdForUpdate(eventId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Event not found"));
 
+        checkOwner(event, user);
         validateEventDates(eventRequest);
+        validateCapacity(eventId, eventRequest.capacity());
         event.setCapacity(eventRequest.capacity());
         event.setTitle(eventRequest.title());
         event.setVenue(eventRequest.venue());
@@ -105,11 +111,22 @@ public class EventService {
         }
     }
 
+    private void validateCapacity(Long eventId, int newCapacity) {
+        final long reservedSeats = reservationRepository.totalEventReservation(eventId);
+        if (reservedSeats > newCapacity) {
+            throw new ApiException(HttpStatus.CONFLICT, "Capacity cannot be lower than the number of reserved seats");
+        }
+    }
+
     private Event findEventAndCheckOwner(Long eventId, AuthUser user) {
-        Event event = findEventById(eventId);
+        final Event event = findEventById(eventId);
+        checkOwner(event, user);
+        return event;
+    }
+
+    private void checkOwner(Event event, AuthUser user) {
         if (!event.getOwnerId().equals(user.id()) && !user.isAdmin()) {
             throw new ApiException(HttpStatus.FORBIDDEN, "Only event owner or admin can modify the event");
         }
-        return event;
     }
 }
