@@ -25,10 +25,17 @@ public class EventService {
     private final AuditService auditService;
     private final ReservationRepository reservationRepository;
 
+    /**
+     * Creates an unpublished event owned by the caller.
+     */
     @Transactional
     public EventResponse create(EventRequest eventRequest, AuthUser user) {
 
         validateEventDates(eventRequest);
+        if (eventRepository.existsByOwnerIdAndTitleAndVenueAndStartsAt(
+                user.id(), eventRequest.title(), eventRequest.venue(), eventRequest.startsAt())) {
+            throw duplicateEvent();
+        }
         Event event = new Event();
         event.setCapacity(eventRequest.capacity());
         event.setTitle(eventRequest.title());
@@ -42,6 +49,10 @@ public class EventService {
         return EventResponse.from(event);
     }
 
+    /**
+     * Updates an event. Only the owner or an admin can do it, and the capacity cannot go
+     * below the seats that are already reserved.
+     */
     @Transactional
     public EventResponse update(Long eventId, EventRequest eventRequest, AuthUser user) {
 
@@ -51,7 +62,11 @@ public class EventService {
 
         checkOwner(event, user);
         validateEventDates(eventRequest);
-        validateCapacity(eventId, eventRequest.capacity());
+        checkCapacity(eventId, eventRequest.capacity());
+        if (eventRepository.existsByOwnerIdAndTitleAndVenueAndStartsAtAndIdNot(
+                event.getOwnerId(), eventRequest.title(), eventRequest.venue(), eventRequest.startsAt(), eventId)) {
+            throw duplicateEvent();
+        }
         event.setCapacity(eventRequest.capacity());
         event.setTitle(eventRequest.title());
         event.setVenue(eventRequest.venue());
@@ -62,6 +77,9 @@ public class EventService {
         return EventResponse.from(event);
     }
 
+    /**
+     * Publishes the event, so it shows up in the public search and accepts reservations.
+     */
     @Transactional
     public EventResponse publish(Long id, AuthUser user) {
         final Event event = findEventAndCheckOwner(id, user);
@@ -71,6 +89,10 @@ public class EventService {
         return EventResponse.from(event);
     }
 
+    /**
+     * Lists events. Admins see all of them or filter by owner, everyone else only gets
+     * their own events.
+     */
     @Transactional(readOnly = true)
     public List<EventResponse> list(Long ownerId, AuthUser user) {
 
@@ -88,22 +110,35 @@ public class EventService {
         return events.stream().map(EventResponse::from).toList();
     }
 
+    /**
+     * Searches published events by start date range and by title or venue. All filters are optional.
+     */
     @Transactional(readOnly = true)
     public List<EventResponse> searchPublished(Instant from, Instant to, String q) {
-        final List<Event> eventList = eventRepository.searchPublishedEventWithParams(from, to, q);
+        final List<Event> eventList = eventRepository.searchPublished(from, to, q);
 
         return eventList.stream().map(EventResponse::from).toList();
     }
 
+    /**
+     * Loads a published event and locks its row, see {@link EventRepository#findPublishedForUpdate}.
+     * 404 if it does not exist or is not published yet.
+     */
     public Event findPublishedForUpdate(Long eventId) {
         return eventRepository.findPublishedForUpdate(eventId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Event not found"));
     }
 
+    /**
+     * Loads an event without locking it, 404 if it does not exist.
+     */
     public Event findEventById(Long eventId) {
         return eventRepository.findById(eventId).orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Event not found"));
     }
 
+    /**
+     * The end has to be after the start (400).
+     */
     private void validateEventDates(EventRequest eventRequest) {
 
         if (!eventRequest.endsAt().isAfter(eventRequest.startsAt())) {
@@ -111,19 +146,36 @@ public class EventService {
         }
     }
 
-    private void validateCapacity(Long eventId, int newCapacity) {
+    /**
+     * The new capacity has to cover the seats already reserved (409).
+     */
+    private void checkCapacity(Long eventId, int newCapacity) {
         final long reservedSeats = reservationRepository.totalEventReservation(eventId);
         if (reservedSeats > newCapacity) {
             throw new ApiException(HttpStatus.CONFLICT, "Capacity cannot be lower than the number of reserved seats");
         }
     }
 
+    /**
+     * Loads the event and makes sure the caller is allowed to change it.
+     */
     private Event findEventAndCheckOwner(Long eventId, AuthUser user) {
         final Event event = findEventById(eventId);
         checkOwner(event, user);
         return event;
     }
 
+    /**
+     * The same owner cannot have two events with the same title, venue and start time (409).
+     * The unique constraint on the table covers concurrent requests that both pass this check.
+     */
+    private ApiException duplicateEvent() {
+        return new ApiException(HttpStatus.CONFLICT, "An event with the same title, venue and start time already exists");
+    }
+
+    /**
+     * Only the owner or an admin can change an event (403).
+     */
     private void checkOwner(Event event, AuthUser user) {
         if (!event.getOwnerId().equals(user.id()) && !user.isAdmin()) {
             throw new ApiException(HttpStatus.FORBIDDEN, "Only event owner or admin can modify the event");

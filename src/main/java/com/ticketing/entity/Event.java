@@ -7,6 +7,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Index;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import jakarta.persistence.Version;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -15,7 +16,10 @@ import lombok.Setter;
 import java.time.Instant;
 
 @Entity
-@Table(name = "events", indexes = @Index(name = "idx_events_owner", columnList = "owner_id"))
+@Table(name = "events",
+        indexes = @Index(name = "idx_events_owner", columnList = "owner_id"),
+        uniqueConstraints = @UniqueConstraint(name = "uk_events_owner_title_venue_start",
+                columnNames = {"owner_id", "title", "venue", "starts_at"}))
 @Getter
 @Setter
 @NoArgsConstructor

@@ -21,17 +21,26 @@ public class AuditService {
 
     private final AuditLogRepository auditLogRepository;
 
+    /**
+     * Writes an entry in the caller's transaction, so it is only kept if the operation commits.
+     */
     @Transactional
     public void record(Long actorId, AuditAction action, ResourceType resourceType, Long resourceId) {
         auditLogRepository.save(build(actorId, action, resourceType, resourceId));
     }
 
-    // failed operations roll back their own transaction, so the audit entry needs its own
+    /**
+     * Use this for failed operations. It writes in a new transaction, so the entry is kept
+     * even when the caller's transaction rolls back.
+     */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void recordFailure(Long actorId, AuditAction action, ResourceType resourceType, Long resourceId) {
         auditLogRepository.save(build(actorId, action, resourceType, resourceId));
     }
 
+    /**
+     * Creates the entry and fills in IP and user agent from the current request, if there is one.
+     */
     private AuditLog build(Long actorId, AuditAction action, ResourceType resourceType, Long resourceId) {
         AuditLog auditLog = new AuditLog();
         auditLog.setActorId(actorId);
@@ -47,6 +56,9 @@ public class AuditService {
         return auditLog;
     }
 
+    /**
+     * The request bound to this thread, or null outside a web request (tests, background jobs).
+     */
     private HttpServletRequest currentRequest() {
         if (RequestContextHolder.getRequestAttributes() instanceof ServletRequestAttributes attributes) {
             return attributes.getRequest();
@@ -54,6 +66,9 @@ public class AuditService {
         return null;
     }
 
+    /**
+     * Keeps the user agent within the column size.
+     */
     private String truncate(String value) {
         return value != null && value.length() > USER_AGENT_MAX_LENGTH
                 ? value.substring(0, USER_AGENT_MAX_LENGTH)

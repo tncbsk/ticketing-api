@@ -82,7 +82,7 @@ The refresh token only carries `sub` and `type: refresh`; roles are read from th
 | POST | /api/reservations/{id}/confirm | reservation owner, admin |
 | POST | /api/reservations/{id}/cancel | reservation owner, admin |
 
-Errors raised by the application use this body:
+Errors use the same body, including malformed JSON, wrong parameter types and unexpected server errors (only a missing or invalid token returns a bare 401):
 
 ```json
 {"timestamp": "...", "status": 409, "error": "Conflict", "message": "Not enough seats available", "path": "/api/events/1/reservations"}
@@ -92,9 +92,11 @@ Errors raised by the application use this body:
 
 **No overselling.** Creating a reservation locks the event row (`SELECT ... FOR UPDATE`), sums the PENDING and CONFIRMED seats and only then saves. Requests for the same event are processed one at a time; requests for different events do not wait for each other. I chose a pessimistic lock because competing for the last seats means frequent conflicts: with optimistic locking many requests would fail even when seats are left and clients would have to retry. Updating an event takes the same lock, so capacity cannot be lowered below the reserved seats while bookings come in.
 
-**Optimistic locking for event updates.** `Event` has a `@Version`. Two concurrent updates of the same event are rare, so the second one simply gets 409.
+**Optimistic locking for event updates and reservation status changes.** `Event` and `Reservation` have a `@Version`. Two concurrent changes of the same row are rare, so the second one simply gets 409. For example, a confirm and a cancel arriving at the same moment for the same reservation cannot both succeed.
 
 **Idempotency.** The key, request hash and resulting reservation id are stored in the same transaction as the reservation, so either both are saved or neither is. The event lock is taken before the key lookup; a second request with the same key waits for the first one and then returns the same reservation instead of failing on the unique constraint. Keys are scoped to the user and endpoint and expire after 24 hours. I did not use a two-phase approach (store the key as IN_PROGRESS first) because there are no external calls in the flow; it would mainly add stuck-key handling.
+
+**No duplicate events.** An organizer cannot have two events with the same title, venue and start time; another show of the same concert at a different time is fine. The service checks this to return a clear 409, and a unique constraint on the table catches two identical requests arriving at the same moment (without it, a test with 10 parallel requests created up to 5 copies).
 
 **Seats are counted, not stored.** Reserved seats are summed from the reservations table instead of keeping a counter on the event. A cancelled reservation frees its seats automatically. PENDING reservations hold seats.
 
@@ -118,6 +120,7 @@ The case leaves these open, so I picked a behaviour:
 - Organizers can only list their own events; asking for another owner's events returns 403.
 - Publishing an already published event is not an error.
 - Reservations for draft events return 404, so drafts stay hidden from customers.
+- The case lists no delete or get-by-id endpoints, so events are read through the list and public search endpoints and are never deleted.
 
 ## Tests
 
@@ -126,10 +129,10 @@ The case leaves these open, so I picked a behaviour:
 ```
 
 - Unit tests (Mockito) for reservation, event and auth services: capacity limits, state changes, ownership and token rules.
-- Integration tests on H2, including concurrency tests: 50 parallel requests for 10 seats create exactly 10 reservations, parallel requests with the same idempotency key create one reservation, and lowering capacity while bookings come in never overbooks.
+- Integration tests on H2, including concurrency tests: 50 parallel requests for 10 seats create exactly 10 reservations, parallel requests with the same idempotency key create one reservation, lowering capacity while bookings come in never overbooks, and a parallel confirm and cancel of the same reservation never both succeed.
 - Security tests with MockMvc for role and ownership checks, plus rate limiting and audit logging.
 
-Line coverage is around 87%, measured with JaCoCo:
+42 tests. Line coverage is 88% overall and 91% on the service and security classes, measured with JaCoCo:
 
 ```
 ./mvnw clean org.jacoco:jacoco-maven-plugin:0.8.16:prepare-agent test org.jacoco:jacoco-maven-plugin:0.8.16:report
@@ -144,5 +147,4 @@ The report is written to `target/site/jacoco/index.html`.
 - Refresh tokens cannot be revoked. Storing and rotating them would fix that.
 - Unconfirmed PENDING reservations hold seats forever; a scheduled job should expire them.
 - Expired idempotency keys are only removed when the same key is used again.
-- A confirm and a cancel arriving at the same moment for the same reservation are not guarded; the last write wins.
 - No pagination on list endpoints.

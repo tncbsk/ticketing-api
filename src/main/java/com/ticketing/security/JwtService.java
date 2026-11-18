@@ -61,7 +61,11 @@ public class JwtService {
                 .compact();
     }
 
-    // throws JwtException if the token is expired or tampered with
+    /**
+     * Verifies the signature and expiry and returns the claims.
+     *
+     * @throws io.jsonwebtoken.JwtException if the token is expired, malformed or tampered with
+     */
     public Claims parse(String token) {
         return Jwts.parser()
                 .verifyWith(key)

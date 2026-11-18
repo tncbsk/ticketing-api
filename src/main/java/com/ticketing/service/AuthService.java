@@ -35,6 +35,10 @@ public class AuthService {
     private final JwtService jwtService;
     private final AuditService auditService;
 
+    /**
+     * Registers a new user. Role defaults to CUSTOMER, ADMIN cannot be requested (400)
+     * and an email that is already taken returns 409.
+     */
     @Transactional
     public UserResponse register(RegisterRequest request) {
         String email = request.email().trim().toLowerCase();
@@ -57,6 +61,10 @@ public class AuthService {
         return UserResponse.from(user);
     }
 
+    /**
+     * Checks the credentials and returns a new token pair. A failed attempt is audited and
+     * ends with 401; a successful one updates lastLoginAt.
+     */
     @Transactional
     public TokenResponse login(LoginRequest request) {
         String email = request.email().trim().toLowerCase();
@@ -76,6 +84,9 @@ public class AuthService {
         return issueTokens(user);
     }
 
+    /**
+     * Issues a new token pair for a valid refresh token. An access token is rejected here.
+     */
     @Transactional(readOnly = true)
     public TokenResponse refresh(RefreshRequest request) {
         Claims claims;
@@ -94,6 +105,9 @@ public class AuthService {
         return issueTokens(user);
     }
 
+    /**
+     * Builds the access and refresh tokens for the user.
+     */
     private TokenResponse issueTokens(User user) {
         return new TokenResponse(
                 jwtService.generateAccessToken(user),

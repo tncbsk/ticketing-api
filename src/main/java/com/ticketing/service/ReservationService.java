@@ -28,6 +28,12 @@ public class ReservationService {
     private final IdempotencyService idempotencyService;
     private final AuditService auditService;
 
+    /**
+     * Creates a PENDING reservation. A repeated request with the same idempotency key
+     * returns the reservation created the first time instead of a new one.
+     * Fails with 400 for an invalid key or a reused key with a different body, 404 if the
+     * event is missing or not published, and 409 if it has started or has no room left.
+     */
     @Transactional
     public ReservationResponse create(Long eventId, ReservationRequest request, String idempotencyKey, AuthUser user) {
 
@@ -68,6 +74,10 @@ public class ReservationService {
         return response;
     }
 
+    /**
+     * Confirms a pending reservation. Only the owner or an admin can do it, and only
+     * before the event starts.
+     */
     @Transactional
     public ReservationResponse confirm(Long reservationId, AuthUser user) {
 
@@ -83,6 +93,9 @@ public class ReservationService {
         return ReservationResponse.from(reservation);
     }
 
+    /**
+     * Cancels a pending or confirmed reservation. Its seats become free again.
+     */
     @Transactional
     public ReservationResponse cancel(Long reservationId, AuthUser user) {
 
@@ -97,6 +110,10 @@ public class ReservationService {
         return ReservationResponse.from(reservation);
     }
 
+    /**
+     * Free seats are the capacity minus PENDING and CONFIRMED seats; asking for more
+     * than that returns 409.
+     */
     private void checkSeatCapacity(Long eventId, ReservationRequest request, Event event) {
 
         final Long totalEventReservation = reservationRepository.totalEventReservation(eventId);
@@ -108,6 +125,10 @@ public class ReservationService {
         }
     }
 
+    /**
+     * Loads a reservation that is about to change: 404 if it does not exist, 403 if the
+     * caller is neither the owner nor an admin, 409 once the event has started.
+     */
     private Reservation findReservationAndCheckOwner(Long reservationId, AuthUser user) {
         final Reservation reservation = reservationRepository.findById(reservationId).orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Reservation not found"));
 
